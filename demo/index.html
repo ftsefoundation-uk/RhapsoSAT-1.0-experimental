@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How equal positions connect</title>
+<style>
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --ink:#1f2933; --muted:#52606d; --line:#d9dde3; --soft:#eef1f4;
+  --primary:#2b5f9e; --primary-ink:#ffffff; --now:#a61e4d; --done:#7b8794; --cell:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#14181d; --panel:#1d232b; --ink:#e8ecf1; --muted:#a9b4c0; --line:#39424e; --soft:#262e38;
+    --primary:#7fb0ea; --primary-ink:#10151b; --now:#ff8fb3; --done:#8a96a3; --cell:#1d232b; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+h1{font-size:19px;margin:0}
+h2{font-size:16px;margin:0 0 8px}
+h3{font-size:14px;margin:0}
+p{margin:0 0 10px}
+.tag{font-size:12.5px;color:var(--muted);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+main{display:grid;grid-template-columns:minmax(240px,290px) minmax(0,1fr) minmax(230px,280px);gap:16px;padding:16px;max-width:1400px;margin:0 auto}
+@media (max-width:980px){ main{grid-template-columns:1fr} }
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.muted{color:var(--muted);font-size:13.5px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+button,select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;min-height:44px;padding:0 12px;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--primary);color:var(--primary-ink);border-color:var(--primary);font-weight:600}
+button.sq{width:44px;padding:0;font-size:18px}
+.seg{display:flex;background:var(--soft);border-radius:10px;padding:4px;gap:4px}
+.seg button{flex:1;border:none;background:transparent;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.num{min-width:54px;text-align:center;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;border-radius:22px}
+.chip span{color:var(--muted)}
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.steps .primary{grid-column:1 / -1}
+#stage{width:100%;height:auto;display:block}
+.status{min-height:48px;font-size:14px;border-left:0;background:var(--soft);border-radius:8px;padding:10px 12px}
+.status b{color:var(--now)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:16px;height:16px;border-radius:4px;display:inline-block}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.metric div:first-child{font-size:12.5px;color:var(--muted)}
+.metric div:last-child{font-size:22px;font-weight:700}
+.cmp{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel)}
+.cmp.on{border:2px solid var(--primary)}
+.cmp .big{font-size:24px;font-weight:700}
+.note{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px}
+.ok{font-size:13px;color:var(--muted)}
+label{font-weight:500;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>How equal positions connect</h1>
+  <span class="tag">A teaching example. It is not the solver and shares none of its code.</span>
+</header>
+<main>
+  <section class="stack" aria-label="Explanation and controls">
+    <div>
+      <h2>What you are seeing</h2>
+      <p class="muted">A <b>shift</b> ties each position to the one a fixed distance away. Tied positions must hold the same letter, so they end up in one <b>group</b>.</p>
+      <p class="muted">You can find the groups by checking every tie, or with a shortcut that settles a whole stretch at once and then works on a smaller piece.</p>
+    </div>
+    <div class="card stack">
+      <div class="seg" role="group" aria-label="Example">
+        <button id="exText" aria-pressed="true">Text</button>
+        <button id="exGrid" aria-pressed="false">Grid</button>
+      </div>
+      <div class="row" id="lenRow">
+        <label id="lenLabel">Text length</label>
+        <div class="row"><button class="sq" id="lenDown" aria-label="Shorter">−</button><span class="num" id="lenVal">9</span><button class="sq" id="lenUp" aria-label="Longer">+</button></div>
+      </div>
+      <div>
+        <label>Equality shifts</label>
+        <div class="chips" id="chips" style="margin-top:8px"></div>
+      </div>
+      <div class="row" id="addRow"></div>
+    </div>
+    <div class="steps">
+      <button class="primary" id="next">Next step</button>
+      <button id="back">Back</button>
+      <button id="all">Show result</button>
+      <button id="reset" style="grid-column:1 / -1">Start over</button>
+    </div>
+  </section>
+
+  <section class="stack" aria-label="Workspace">
+    <div class="card stack">
+      <div class="row"><h2 id="title" style="margin:0">A text of 9 letters</h2><span id="stepNo" style="font-weight:600;color:var(--now)">Step 0 of 0</span></div>
+      <svg id="stage" role="img" aria-label="Positions and the ties between them"></svg>
+      <div class="status" id="status" aria-live="polite"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card muted" id="gridNote" hidden>
+      In a grid the edges cut ties short, and the shortcut only applies while one shift fits inside all the others. When it does not, the remaining ties are checked one by one. This demo shows small grids only.
+    </div>
+  </section>
+
+  <section class="stack" aria-label="Results">
+    <div class="seg" role="group" aria-label="Method">
+      <button id="mNaive" aria-pressed="true">Naive</button>
+      <button id="mRed" aria-pressed="false">Reduction</button>
+    </div>
+    <div class="cmp on" id="cNaive"><h3>Naive: check every link</h3><div class="muted">Looks at each tie, one by one.</div><div><span class="big" id="opsNaive">0</span> <span class="muted">operations</span></div></div>
+    <div class="cmp" id="cRed"><h3>Reduction: process fewer relationships</h3><div class="muted" id="redText">Settles the far end from earlier positions, then repeats on what is left.</div><div><span class="big" id="opsRed">0</span> <span class="muted">operations</span></div></div>
+    <div class="metrics">
+      <div class="metric"><div>Positions</div><div id="mPos">0</div></div>
+      <div class="metric"><div>Links represented</div><div id="mLinks">0</div></div>
+      <div class="metric"><div>Groups</div><div id="mGroups">0</div></div>
+      <div class="metric"><div>Operations</div><div id="mOps">0</div></div>
+    </div>
+    <div class="ok" id="agree"></div>
+    <div class="note"><b>Illustrative counts, not benchmark timings.</b><br>Illustrative operation counts: steps counted in this small example. Measured benchmark timings: none are shown here.</div>
+  </section>
+</main>
+
+<script>
+// ===== engine (plain arithmetic on small point sets; written for this page) =====
+var key = function (p) { return p[0] + "," + p[1]; };
+var add = function (a, b) { return [a[0] + b[0], a[1] + b[1]]; };
+var sub = function (a, b) { return [a[0] - b[0], a[1] - b[1]]; };
+var neg = function (a) { return [-a[0], -a[1]]; };
+var isZero = function (a) { return a[0] === 0 && a[1] === 0; };
+var norm = function (a) { return (a[0] < 0 || (a[0] === 0 && a[1] < 0)) ? neg(a) : a; };
+
+function domainOf(w, h) { var d = []; for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) d.push([x, y]); return d; }
+function setOf(pts) { var s = {}; pts.forEach(function (p) { s[key(p)] = true; }); return s; }
+function linksOf(pts, shifts) {
+  var s = setOf(pts), out = [];
+  shifts.forEach(function (q) { pts.forEach(function (v) { var w = add(v, q); if (s[key(w)]) out.push({ a: v, b: w, q: q }); }); });
+  return out;
+}
+// Every tie, one by one.
+function naiveSteps(pts, shifts) {
+  return linksOf(pts, shifts).map(function (l) { return { a: l.a, b: l.b, kind: "check", stage: 0 }; });
+}
+// "p splits q": whenever v and v+q are inside, so are v+p and v+q-p.
+function splits(pts, s, p, q) {
+  return pts.every(function (v) { return !s[key(add(v, q))] || (s[key(add(v, p))] && s[key(sub(add(v, q), p))]); });
+}
+// The shortcut: while some shift fits inside all the others, settle the far
+// strip from earlier positions and continue on the smaller piece. When no
+// shift fits, the ties that remain are checked one by one.
+function reductionSteps(pts, shifts) {
+  var steps = [], stages = [pts], stopped = false;
+  var cur = pts, P = shifts.map(norm);
+  for (;;) {
+    var s = setOf(cur);
+    P = P.filter(function (q) { return cur.some(function (v) { return s[key(add(v, q))]; }); });
+    if (P.length === 0) break;
+    var chosen = null, oriented = null;
+    for (var i = 0; i < P.length && !chosen; i++) {
+      for (var sg = 0; sg < 2 && !chosen; sg++) {
+        var p = sg ? neg(P[i]) : P[i], ors = [], ok = true;
+        for (var j = 0; j < P.length && ok; j++) {
+          if (j === i) continue;
+          if (splits(cur, s, p, P[j])) ors.push(P[j]);
+          else if (splits(cur, s, p, neg(P[j]))) ors.push(neg(P[j]));
+          else ok = false;
+        }
+        if (ok) { chosen = p; oriented = ors; }
+      }
+    }
+    if (!chosen) {
+      stopped = true;
+      linksOf(cur, P).forEach(function (l) { steps.push({ a: l.a, b: l.b, kind: "check", stage: stages.length - 1 }); });
+      break;
+    }
+    var inner = cur.filter(function (v) { return s[key(add(v, chosen))]; });
+    var innerSet = setOf(inner);
+    cur.forEach(function (t) {
+      if (!innerSet[key(t)] && s[key(sub(t, chosen))]) steps.push({ a: sub(t, chosen), b: t, kind: "copy", stage: stages.length - 1 });
+    });
+    var next = [norm(chosen)];
+    oriented.forEach(function (q) {
+      var d = norm(sub(q, chosen));
+      if (!isZero(d) && !next.some(function (e) { return e[0] === d[0] && e[1] === d[1]; })) next.push(d);
+    });
+    cur = inner; P = next; stages.push(cur);
+  }
+  return { steps: steps, stages: stages, stopped: stopped };
+}
+// Groups after the first `count` steps: label of every position.
+function groupsAfter(pts, steps, count) {
+  var parent = {};
+  pts.forEach(function (p) { parent[key(p)] = key(p); });
+  function find(k) { while (parent[k] !== k) { parent[k] = parent[parent[k]]; k = parent[k]; } return k; }
+  for (var i = 0; i < count; i++) { var a = find(key(steps[i].a)), b = find(key(steps[i].b)); if (a !== b) parent[b] = a; }
+  var ids = {}, label = {}, sizes = [];
+  pts.forEach(function (p) { var r = find(key(p)); if (ids[r] === undefined) { ids[r] = sizes.length; sizes.push(0); } label[key(p)] = ids[r]; sizes[ids[r]]++; });
+  return { label: label, count: sizes.length, sizes: sizes };
+}
+function samePartition(pts, g1, g2) {
+  var m = {}, r = {};
+  return pts.every(function (p) {
+    var a = g1.label[key(p)], b = g2.label[key(p)];
+    if (m[a] === undefined) m[a] = b; if (r[b] === undefined) r[b] = a;
+    return m[a] === b && r[b] === a;
+  });
+}
+// ===== end of engine =====
+
+if (typeof module !== "undefined") { module.exports = { domainOf: domainOf, naiveSteps: naiveSteps, reductionSteps: reductionSteps, groupsAfter: groupsAfter, samePartition: samePartition, linksOf: linksOf }; }
+
+if (typeof document !== "undefined") (function () {
+  var COLORS = ["#2f6fb7", "#c8660f", "#5b4bb0", "#12806a", "#b23a6e", "#6b7a12", "#0f7f9c", "#8a5a2b"];
+  var DASH = ["", "5 3", "", "2 3", "8 3", "", "5 3", "2 3"];
+  var state = { ex: "text", n: 9, textShifts: [3, 6], g: 3, gridShifts: [[2, 1], [1, 2]], mode: "naive", step: 0 };
+  var $ = function (id) { return document.getElementById(id); };
+  var model;
+
+  function build() {
+    var pts = state.ex === "text" ? domainOf(state.n, 1) : domainOf(state.g, state.g);
+    var shifts = state.ex === "text" ? state.textShifts.map(function (q) { return [q, 0]; }) : state.gridShifts;
+    var naive = naiveSteps(pts, shifts), red = reductionSteps(pts, shifts);
+    var finalN = groupsAfter(pts, naive, naive.length), finalR = groupsAfter(pts, red.steps, red.steps.length);
+    model = { pts: pts, shifts: shifts, naive: naive, red: red, finalN: finalN, agree: samePartition(pts, finalN, finalR) };
+    var total = steps().length;
+    if (state.step > total) state.step = total;
+  }
+  function steps() { return state.mode === "naive" ? model.naive : model.red.steps; }
+  function name(p) { return state.ex === "text" ? "position " + (p[0] + 1) : "cell (column " + (p[0] + 1) + ", row " + (p[1] + 1) + ")"; }
+  function shiftName(q) {
+    if (state.ex === "text") return q + " apart";
+    var part = function (v, a, b) { return v === 0 ? "" : Math.abs(v) + " " + (v > 0 ? a : b); };
+    return [part(q[0], "right", "left"), part(q[1], "down", "up")].filter(Boolean).join(", ");
+  }
+  function letter(i) { return i < 26 ? String.fromCharCode(65 + i) : String(i + 1); }
+
+  function draw() {
+    var st = steps(), total = st.length, cur = state.step;
+    var g = groupsAfter(model.pts, st, cur);
+    var isText = state.ex === "text";
+    var cols = isText ? state.n : state.g, rows = isText ? 1 : state.g;
+    var cell = isText ? Math.min(56, 760 / cols) : 64, gap = isText ? 8 : 14;
+    var top = isText ? 96 : 14, pad = 14;
+    var W = pad * 2 + cols * cell + (cols - 1) * gap, H = top + rows * cell + (rows - 1) * gap + 14;
+    var cx = function (p) { return pad + p[0] * (cell + gap) + cell / 2; };
+    var cy = function (p) { return top + p[1] * (cell + gap) + cell / 2; };
+    var stage = cur > 0 ? st[cur - 1].stage : 0;
+    var live = state.mode === "reduction" ? setOf(model.red.stages[Math.min(stage, model.red.stages.length - 1)]) : setOf(model.pts);
+    var out = [];
+    // ties already handled, then the current one
+    for (var i = 0; i < cur; i++) {
+      var s = st[i], now = i === cur - 1;
+      var col = now ? "var(--now)" : "var(--done)", wd = now ? 3 : 1.4, op = now ? 1 : 0.55;
+      if (isText) {
+        var x1 = cx(s.a), x2 = cx(s.b), hgt = Math.min(top - 14, 18 + Math.abs(x2 - x1) * 0.22);
+        out.push('<path d="M' + x1 + " " + (top - 4) + " Q" + (x1 + x2) / 2 + " " + (top - 4 - hgt * 2) + " " + x2 + " " + (top - 4) + '" fill="none" stroke="' + col + '" stroke-width="' + wd + '" opacity="' + op + '"/>');
+      } else {
+        out.push('<line x1="' + cx(s.a) + '" y1="' + cy(s.a) + '" x2="' + cx(s.b) + '" y2="' + cy(s.b) + '" stroke="' + col + '" stroke-width="' + wd + '" opacity="' + op + '"/>');
+      }
+    }
+    model.pts.forEach(function (p) {
+      var id = g.label[key(p)], alone = g.sizes[id] === 1, k = id % COLORS.length;
+      var x = cx(p) - cell / 2, y = cy(p) - cell / 2;
+      var hot = cur > 0 && (key(st[cur - 1].a) === key(p) || key(st[cur - 1].b) === key(p));
+      var dim = live[key(p)] ? 1 : 0.38;
+      out.push('<g opacity="' + dim + '"><rect x="' + x + '" y="' + y + '" width="' + cell + '" height="' + cell + '" rx="8" fill="' + (alone ? "var(--cell)" : COLORS[k]) + '" fill-opacity="' + (alone ? 1 : 0.2) + '" stroke="' + (alone ? "var(--muted)" : COLORS[k]) + '" stroke-width="2" stroke-dasharray="' + (alone ? "2 4" : DASH[k]) + '"/>' +
+        (hot ? '<rect x="' + (x - 4) + '" y="' + (y - 4) + '" width="' + (cell + 8) + '" height="' + (cell + 8) + '" rx="11" fill="none" stroke="var(--now)" stroke-width="2.5"/>' : "") +
+        '<text x="' + cx(p) + '" y="' + (cy(p) + (isText ? 1 : 2)) + '" text-anchor="middle" font-size="' + (cell > 40 ? 18 : 14) + '" font-weight="700" fill="var(--ink)">' + (alone ? "" : letter(id)) + "</text>" +
+        '<text x="' + cx(p) + '" y="' + (y + cell - 6) + '" text-anchor="middle" font-size="10.5" fill="var(--muted)">' + (isText ? p[0] + 1 : "") + "</text></g>");
+    });
+    var svg = $("stage");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.style.maxWidth = (isText ? W : Math.min(W, 420)) + "px";
+    svg.innerHTML = out.join("");
+
+    // words
+    $("title").textContent = isText ? "A text of " + state.n + " letters" : "A grid of " + state.g + " by " + state.g + " cells";
+    $("stepNo").textContent = "Step " + cur + " of " + total;
+    var msg;
+    if (total === 0) msg = "Nothing is tied yet. Add a shift to begin.";
+    else if (cur === 0) msg = "Press <b>Next step</b> to handle the first tie.";
+    else {
+      var s2 = st[cur - 1];
+      msg = s2.kind === "copy"
+        ? "<b>Shortcut:</b> " + name(s2.b) + " takes its letter from " + name(s2.a) + ", so it needs no further attention."
+        : "<b>Check:</b> " + name(s2.a) + " and " + name(s2.b) + " must match.";
+      if (cur === total) msg += " Done: " + g.count + (g.count === 1 ? " group." : " groups.");
+      else if (state.mode === "reduction" && st[cur].stage !== s2.stage) msg += " Next, the same idea is repeated on the smaller piece (faded positions are finished).";
+      else if (state.mode === "reduction" && s2.kind === "copy" && st[cur].kind === "check") msg += " No shift fits inside the others now, so the rest is checked one by one.";
+    }
+    $("status").innerHTML = msg;
+    var leg = [];
+    for (var id = 0; id < g.count; id++) if (g.sizes[id] > 1) leg.push('<span><i class="sw" style="background:' + COLORS[id % COLORS.length] + '"></i>Group ' + letter(id) + ": " + g.sizes[id] + " positions</span>");
+    var single = g.sizes.filter(function (z) { return z === 1; }).length;
+    if (single) leg.push('<span><i class="sw" style="border:2px dotted var(--muted)"></i>' + single + " on " + (single === 1 ? "its" : "their") + " own</span>");
+    $("legend").innerHTML = leg.join("");
+
+    // numbers
+    $("mPos").textContent = model.pts.length;
+    $("mLinks").textContent = model.naive.length;
+    $("mGroups").textContent = model.finalN.count;
+    $("mOps").textContent = total;
+    $("opsNaive").textContent = model.naive.length;
+    $("opsRed").textContent = model.red.steps.length;
+    $("redText").textContent = model.red.stopped
+      ? "The shortcut ran out here: no shift fits inside the others, so the remaining ties were checked one by one."
+      : "Settles the far end from earlier positions, then repeats on what is left.";
+    $("agree").textContent = model.agree ? "Both methods give the same groups for this example." : "Warning: the two methods disagree on this example.";
+    $("cNaive").className = "cmp" + (state.mode === "naive" ? " on" : "");
+    $("cRed").className = "cmp" + (state.mode === "reduction" ? " on" : "");
+    $("mNaive").setAttribute("aria-pressed", state.mode === "naive");
+    $("mRed").setAttribute("aria-pressed", state.mode === "reduction");
+    $("exText").setAttribute("aria-pressed", isText);
+    $("exGrid").setAttribute("aria-pressed", !isText);
+    $("gridNote").hidden = isText;
+    $("next").disabled = cur >= total;
+    $("back").disabled = cur === 0;
+    $("all").disabled = cur >= total;
+    $("lenLabel").textContent = isText ? "Text length" : "Grid size";
+    $("lenVal").textContent = isText ? state.n : state.g + " × " + state.g;
+
+    // shift chips
+    var list = isText ? state.textShifts : state.gridShifts;
+    $("chips").innerHTML = list.map(function (q, i) {
+      return '<button class="chip" data-i="' + i + '" aria-label="Remove shift ' + shiftName(q) + '">' + shiftName(q) + " <span>×</span></button>";
+    }).join("") || '<span class="muted">none</span>';
+    Array.prototype.forEach.call($("chips").querySelectorAll("button"), function (b) {
+      b.onclick = function () { list.splice(+b.dataset.i, 1); change(); };
+    });
+    var addRow = $("addRow");
+    if (isText) {
+      var opts = []; for (var q = 1; q < state.n; q++) if (list.indexOf(q) < 0) opts.push('<option value="' + q + '">' + q + " apart</option>");
+      addRow.innerHTML = '<select id="addSel" aria-label="Shift to add">' + opts.join("") + '</select><button id="addBtn">+ Add a shift</button>';
+      $("addBtn").disabled = opts.length === 0 || list.length >= 4;
+      $("addBtn").onclick = function () { list.push(+$("addSel").value); list.sort(function (a, b) { return a - b; }); change(); };
+    } else {
+      var r = []; for (var v = -(state.g - 1); v <= state.g - 1; v++) r.push(v);
+      var o = function (a, b) { return r.map(function (v) { return '<option value="' + v + '"' + (v === 1 ? " selected" : "") + ">" + (v === 0 ? "0" : Math.abs(v) + " " + (v > 0 ? a : b)) + "</option>"; }).join(""); };
+      addRow.innerHTML = '<select id="addX" aria-label="Across">' + o("right", "left") + '</select><select id="addY" aria-label="Down">' + o("down", "up") + '</select><button id="addBtn">+ Add</button>';
+      $("addBtn").disabled = list.length >= 3;
+      $("addBtn").onclick = function () {
+        var d = norm([+$("addX").value, +$("addY").value]);
+        if (isZero(d) || list.some(function (e) { return e[0] === d[0] && e[1] === d[1]; })) return;
+        list.push(d); change();
+      };
+    }
+  }
+  function change() { state.step = 0; build(); draw(); }
+  $("next").onclick = function () { if (state.step < steps().length) { state.step++; draw(); } };
+  $("back").onclick = function () { if (state.step > 0) { state.step--; draw(); } };
+  $("all").onclick = function () { state.step = steps().length; draw(); };
+  $("reset").onclick = function () { state.step = 0; draw(); };
+  $("mNaive").onclick = function () { state.mode = "naive"; change(); };
+  $("mRed").onclick = function () { state.mode = "reduction"; change(); };
+  $("exText").onclick = function () { state.ex = "text"; change(); };
+  $("exGrid").onclick = function () { state.ex = "grid"; change(); };
+  $("lenDown").onclick = function () {
+    if (state.ex === "text") { if (state.n > 3) { state.n--; state.textShifts = state.textShifts.filter(function (q) { return q < state.n; }); } }
+    else if (state.g > 2) { state.g--; state.gridShifts = state.gridShifts.filter(function (q) { return Math.abs(q[0]) < state.g && Math.abs(q[1]) < state.g; }); }
+    change();
+  };
+  $("lenUp").onclick = function () { if (state.ex === "text") { if (state.n < 16) state.n++; } else if (state.g < 6) state.g++; change(); };
+  build(); draw();
+})();
+</script>
+</body>
+</html>
