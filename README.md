@@ -85,6 +85,4 @@ the checks behind the research notes. See the user manual for details.
 
 ## Licence
 
-No licence file is included in this repository. Unless the owner adds one,
-the usual default applies: you may read the code here, but no permission to
-reuse or redistribute it is granted.
+Released under the [MIT License](LICENSE).
