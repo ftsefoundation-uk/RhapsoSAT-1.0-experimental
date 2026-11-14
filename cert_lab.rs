@@ -70,7 +70,10 @@ fn truth(n: usize, alphabet: &[u8], cons: &[Con]) -> Option<usize> {
 fn verdict_true(verdict: &str, truth: Option<usize>, groups: usize) -> bool {
     match truth {
         None => verdict.starts_with("contradiction;"),
-        Some(free) => verdict.starts_with(&format!("solvable; {groups} groups of equal positions, {free} of them free;")),
+        Some(free) => {
+            let noun = if groups == 1 { "group" } else { "groups" };
+            verdict.starts_with(&format!("solvable; {groups} {noun} of equal positions, {free} of them free;"))
+        }
     }
 }
 

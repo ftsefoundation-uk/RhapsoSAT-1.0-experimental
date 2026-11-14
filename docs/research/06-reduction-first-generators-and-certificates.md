@@ -4,8 +4,8 @@
 the border set *before* building groups help; what does the fallback
 construction of contradiction explanations cost in the worst case; and how
 are answers certified to a separate checker. Status labels as in note 01.
-"Tested" refers to the 54 self-tests of `prefsuf.rs`, to `reduce_lab.rs`
-and to `cert_lab.rs`. Machine as in note 04; all timings are single runs.
+"Tested" refers to the 56 self-tests of `prefsuf.rs` (54 when this note was
+written), to `reduce_lab.rs` and to `cert_lab.rs`. Machine as in note 04; all timings are single runs.
 
 Notation as in note 01: text length n, Border rules with borders b (shift
 n − b), m of them. A **phase** is a maximal run of grouping rounds with the

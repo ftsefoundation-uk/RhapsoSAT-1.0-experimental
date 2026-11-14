@@ -565,6 +565,8 @@ struct LabTally {
     worst_short_ratio: f64,
     pairs: u64,
     pairs_bad: u64,
+    answers_bad: u64,
+    puzzles_checked: u64, // solver's answer differs from the independent grouping's
     max_n: usize,
     max_cert: usize,
     max_borders: usize,
@@ -595,7 +597,28 @@ fn try_puzzle(t: &mut LabTally, seed: u64, n: usize, al: &[u8], cons: &[Con], r:
     if n >= 2 {
         let mut d = LabDerivation::new(n, cons);
         let periods = periods_of(n, cons);
-        let (comp, _) = components(n, &periods);
+        let (comp, groups) = components(n, &periods);
+        t.puzzles_checked += 1;
+        // the answer itself, from the independent grouping: a contradiction
+        // exactly when two fixed letters fall into one group
+        let mut letter = vec![0u8; groups];
+        let mut clash = false;
+        for c in cons {
+            let (w, at) = match c {
+                Con::Prefix(w) => (w, 0),
+                Con::Suffix(w) => (w, n - w.len()),
+                Con::Border(_) => continue,
+            };
+            for (j, &ch) in w.iter().enumerate() {
+                let g = comp[at + j] as usize;
+                clash |= letter[g] != 0 && letter[g] != ch;
+                letter[g] = ch;
+            }
+        }
+        if clash != matches!(out, Outcome::Unsat(_)) {
+            t.answers_bad += 1;
+            report(if clash { "the solver missed a contradiction" } else { "the solver reported a contradiction that does not exist" });
+        }
         for _ in 0..4 {
             let a = r.below(n);
             let b = r.below(n);
@@ -800,7 +823,8 @@ fn check(seed: u64) {
         "  chains between random pairs of positions: {} tried, {} wrong; longest text {}, most distinct borders {}",
         t.pairs, t.pairs_bad, t.max_n, t.max_borders
     );
-    std::process::exit(if t.rejected + t.missing + t.pairs_bad == 0 && t.solver_fallback_ok == t.unsat { 0 } else { 1 });
+    println!("  answers checked against an independent grouping: {} puzzles with n >= 2, {} wrong", t.puzzles_checked, t.answers_bad);
+    std::process::exit(if t.rejected + t.missing + t.pairs_bad + t.answers_bad == 0 && t.solver_fallback_ok == t.unsat { 0 } else { 1 });
 }
 
 /// Cost of deriving a chain for EVERY position (a full spanning forest of

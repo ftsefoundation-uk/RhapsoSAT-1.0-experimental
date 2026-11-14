@@ -342,8 +342,10 @@ of memory, because some of its puzzles are 5,000,000 characters long.
 
 `sh tools/test_cli.sh` runs the solver and the checker as a user would and
 checks their exit statuses (0 answer or VALID, 1 REJECTED, 2 unreadable
-input, bad command line, or output that cannot be written) and that neither
-crashes.
+input, bad command line, or output that cannot be written, 3 a failed
+internal double-check) and that neither crashes. The double-check case uses
+a copy of the solver whose double-checks are made to fail (fault injection
+inside the test; the real file is not changed).
 
 ### Running everything in the background
 
@@ -401,3 +403,30 @@ condition can fail. Nothing here has any bearing on NP-complete problems.
   is not in the allowed list) are reported as errors, with exit status 2.
   So is an answer that cannot be written (a full disk, or a pipe closed
   early, as in `sh prefsuf.rs ... | head`).
+- If the report's own double-check fails (it never has in testing), the
+  report is still printed, with "FAILED - please report this" (or
+  `checked ... false` in `--compact`), followed by a diagnostic on stderr,
+  and the exit status is 3. Treat such an answer as wrong.
+
+## Changes from the first release (compatibility)
+
+Answers, reports on standard output, certificates, and what `certcheck.rs`
+accepts or rejects are unchanged. What changed, all on purpose:
+
+| Situation | First release | Now |
+| --- | --- | --- |
+| `prefsuf.rs`: an argument that is not valid UTF-8 | crash, exit 101 | message, exit 2 |
+| `prefsuf.rs`: the answer cannot be written (full disk, closed pipe) | crash, exit 101 | message, exit 2 |
+| `prefsuf.rs`: the report's double-check fails | exit 0 | diagnostic on stderr, exit 3 |
+| `certcheck.rs`: bad puzzle after the file name | `REJECTED`, exit 1 | message on stderr, exit 2 |
+| `certcheck.rs`: an argument that is not valid UTF-8, or the verdict cannot be written | crash, exit 101 | exit 2 |
+| `certcheck.rs`: it cannot be compiled | exit 1 | exit 2 |
+| `certcheck.rs`: verdict for one group | `1 groups` | `1 group` |
+| `certcheck.rs` without a puzzle after the file name | `VALID` only | `VALID` plus a reminder on stderr |
+| `prefsuf.rs` messages for a too-large length, a non-ASCII letter, an unknown `--option` | generic | specific (exit status unchanged, 2) |
+
+Measured with `tools/test_cli.sh` run against the first release: 15 of its
+cases pass and 11 fail. The 11 are exactly the changes in this table (the
+fault-injection block counts once there, because the first release has no
+failure path to inject into); none is a regression. The 15 that pass are
+the behaviour that did not change.

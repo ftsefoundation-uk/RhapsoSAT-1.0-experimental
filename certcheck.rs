@@ -406,7 +406,8 @@ fn check_solvable(p: &Puzzle, r: &mut Reader) -> Result<String, String> {
         Some(c) if free <= u32::MAX as usize => c.to_string(),
         _ => format!("{}^{free}", p.letters.len()),
     };
-    Ok(format!("solvable; {groups} groups of equal positions, {free} of them free; number of texts: {count}"))
+    let noun = if groups == 1 { "group" } else { "groups" };
+    Ok(format!("solvable; {groups} {noun} of equal positions, {free} of them free; number of texts: {count}"))
 }
 
 fn check_contradiction(p: &Puzzle, r: &mut Reader) -> Result<String, String> {

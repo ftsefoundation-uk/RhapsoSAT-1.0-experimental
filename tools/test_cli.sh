@@ -51,6 +51,27 @@ if [ -w /dev/full ]; then
     expect "solver: output cannot be written" 2 "" sh -c 'sh prefsuf.rs 8 ab B5 > /dev/full'
 fi
 
+# ---- a failed internal double-check must not look like a good answer
+# A copy of the solver whose double-checks always fail (fault injection in
+# the test only; the real file is not changed). Expect exit 3 and a
+# diagnostic on stderr, for both answers and both report formats.
+mkdir -p "$work/broken"
+sed 's/double_checked(satisfies_fast(/double_checked(false \&\& satisfies_fast(/; s/double_checked(check_conflict(/double_checked(false \&\& check_conflict(/' prefsuf.rs > "$work/broken/prefsuf.rs"
+injected="$(grep -c 'double_checked(false && ' "$work/broken/prefsuf.rs")"
+if [ "$injected" -ne 4 ]; then
+    echo "FAIL  fault injection: expected 4 double-check sites, found $injected"
+    failed=$((failed + 1))
+else
+    for case in "8 ab B5 Pab Sb" "7 ab B4 Pa Sb" "--compact 8 ab B5 Pab Sb" "--compact 7 ab B4 Pa Sb"; do
+        # shellcheck disable=SC2086
+        expect "solver: failed double-check exits 3 ($case)" 3 "" sh "$work/broken/prefsuf.rs" $case
+        if ! grep -q 'failed its own double-check' "$work/err"; then
+            echo "FAIL  solver: failed double-check gives no diagnostic ($case)"
+            failed=$((failed + 1))
+        fi
+    done
+fi
+
 # ---- the checker
 sh prefsuf.rs --certificate 8 ab B5 Pab Sb > "$work/sat.txt" || { echo "FAIL  cannot make a certificate"; exit 1; }
 sh prefsuf.rs --certificate 7 ab B4 Pa Sb > "$work/unsat.txt" || { echo "FAIL  cannot make a certificate"; exit 1; }
@@ -58,6 +79,8 @@ sed 's/^free 1$/free 0/' "$work/sat.txt" > "$work/forged.txt"
 expect "checker: solvable, puzzle given"   0 "VALID: solvable" sh certcheck.rs "$work/sat.txt" 8 ab B5 Pab Sb
 expect "checker: solvable, no puzzle"      0 "VALID: solvable" sh certcheck.rs "$work/sat.txt"
 expect "checker: contradiction"            0 "VALID: contradiction" sh certcheck.rs "$work/unsat.txt" 7 ab B4 Pa Sb
+sh prefsuf.rs --certificate 3 ab B2 > "$work/one.txt" || { echo "FAIL  cannot make a certificate"; exit 1; }
+expect "checker: one group (singular)"    0 "VALID: solvable; 1 group of equal positions" sh certcheck.rs "$work/one.txt" 3 ab B2
 expect "checker: standard input"           0 "VALID" sh -c 'sh certcheck.rs - < "$1"' sh "$work/unsat.txt"
 expect "checker: forged free count"        1 "REJECTED" sh certcheck.rs "$work/forged.txt"
 expect "checker: other puzzle"             1 "REJECTED" sh certcheck.rs "$work/sat.txt" 8 ab B5 Pab

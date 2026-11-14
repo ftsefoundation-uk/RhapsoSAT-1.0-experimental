@@ -1904,7 +1904,8 @@ fn report_compact(n: usize, alphabet: &[u8], cons: &[Con]) -> Result<String, Str
             for (pair, idx) in cf.path.windows(2).zip(&cf.via) {
                 let _ = writeln!(o, "         position {} = position {} by {}", pair[0], pair[1], describe(&cons[*idx]));
             }
-            let _ = writeln!(o, "checked  certificate valid: {}", check_conflict(&cf, n, cons));
+            let valid = double_checked(check_conflict(&cf, n, cons));
+            let _ = writeln!(o, "checked  certificate valid: {valid}");
         }
         Outcome::Sat { pattern, free } => {
             let shown: Vec<String> = pattern
@@ -1928,7 +1929,8 @@ fn report_compact(n: usize, alphabet: &[u8], cons: &[Con]) -> Result<String, Str
             }
             let w = witness(&pattern, free, alphabet);
             let _ = writeln!(o, "witness  {}", text(&w));
-            let _ = writeln!(o, "checked  witness satisfies definition: {}", satisfies_fast(&w, n, alphabet, cons));
+            let fits = double_checked(satisfies_fast(&w, n, alphabet, cons));
+            let _ = writeln!(o, "checked  witness satisfies definition: {fits}");
         }
     }
     Ok(o)
@@ -2067,12 +2069,12 @@ fn report_plain(n: usize, alphabet: &[u8], cons: &[Con], full: bool) -> Result<S
                 }
             }
             let _ = writeln!(o);
-            let verdict = if check_conflict(&cf, n, cons) { "confirmed" } else { "FAILED - please report this" };
+            let verdict = if double_checked(check_conflict(&cf, n, cons)) { "confirmed" } else { "FAILED - please report this" };
             let _ = writeln!(o, "  Double-check: each step of this explanation was re-checked against the rules: {verdict}.");
         }
         Outcome::Sat { pattern, free } => {
             let example = witness(&pattern, free, alphabet);
-            let verdict = if satisfies_fast(&example, n, alphabet, cons) { "confirmed" } else { "FAILED - please report this" };
+            let verdict = if double_checked(satisfies_fast(&example, n, alphabet, cons)) { "confirmed" } else { "FAILED - please report this" };
             abbreviated |= !full && n > SHOW_HEAD + SHOW_TAIL;
             if is_unique(alphabet.len(), free) {
                 let _ = writeln!(o, "Result: ONE SOLUTION - exactly one text fits all the rules.");
@@ -2244,6 +2246,19 @@ fn report(n: usize, alphabet: &[u8], cons: &[Con], opts: Options) -> Result<Stri
     }
 }
 
+/// Set when a report's own double-check (witness or explanation re-checked
+/// against the rules) fails. The answer is then not trustworthy: `main`
+/// prints a diagnostic and exits with status 3.
+static DOUBLE_CHECK_FAILED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Record the outcome of a double-check and pass it on.
+fn double_checked(ok: bool) -> bool {
+    if !ok {
+        DOUBLE_CHECK_FAILED.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    ok
+}
+
 /// Write the answer. If it cannot be written (closed pipe, full disk) say so
 /// on stderr and exit 2 instead of aborting with a panic.
 fn emit(out: &str) {
@@ -2288,7 +2303,13 @@ fn main() {
         exit(if ok { 0 } else { 1 });
     }
     match parse_args(&args).and_then(|(n, alphabet, cons)| report(n, &alphabet, &cons, opts)) {
-        Ok(out) => emit(&out),
+        Ok(out) => {
+            emit(&out);
+            if DOUBLE_CHECK_FAILED.load(std::sync::atomic::Ordering::Relaxed) {
+                eprintln!("internal error: the answer above failed its own double-check against the rules, so it must not be trusted. Please report this puzzle.");
+                exit(3);
+            }
+        }
         Err(e) => {
             eprintln!("Sorry, that puzzle could not be read: {e}.\n\n{USAGE}");
             exit(2);

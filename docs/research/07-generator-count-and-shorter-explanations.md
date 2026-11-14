@@ -44,6 +44,11 @@ logarithmic number is a property of the problem, not of this algorithm.
 text already forms a single group. So "generator" is sufficient for
 forcing all equalities (Theorem 17), not a minimal set.
 
+**Update.** Conjecture 20 below is now proved: note 08, Theorem 21 (a written
+proof with exhaustive and random tests, not machine-checked). Note 08 belongs
+to the development history and is not yet part of this repository. The text
+below is left as written.
+
 **Conjecture 20.** G(n) = ⌊log₂ n⌋ for every n ≥ 2.
 
 *Evidence (Experimental observation).* Exhaustive over every set of borders
@@ -56,7 +61,8 @@ conjecture if they halved at every generator: the shift, min(shift, border),
 and the number of groups of the remaining text. All three are false
 (hundreds of thousands of counterexamples for n ≤ 22; the groups invariant
 fails on n = 11, borders 3, 4, 6). A proof needs a different potential.
-The gap between ⌊log₂ n⌋ and 2 log₂ n + 2 is therefore **open**.
+The gap between ⌊log₂ n⌋ and 2 log₂ n + 2 is therefore **open**. (Closed
+since: see the update above.)
 
 For the number of *phases* the picture differs: up to 5 phases occur at
 n = 20 (borders with periods 13 and 8, Fibonacci numbers), above
@@ -139,7 +145,7 @@ round; the look-up bounds above are the proved figures.
 
 | Rank | Question | Importance | Feasibility | Why this rank |
 |---:|---|---|---|---|
-| 1 | Conjecture 20: G(n) = ⌊log₂ n⌋ | Closes the generator theory | Medium: exhaustive data is clean, three natural invariants already refuted | Small, sharp, decidable by the right potential function |
+| 1 | Conjecture 20: G(n) = ⌊log₂ n⌋ (since proved, note 08) | Closes the generator theory | Medium: exhaustive data is clean, three natural invariants already refuted | Small, sharp, decidable by the right potential function |
 | 2 | Near-shortest chains with a proved ratio in near-linear time | Directly improves what users read | Medium | The "16 random" case shows the current method can be 50× too long |
 | 3 | Three or more shifts in 2-D: closed corner constant and threshold | Completes the 2-D picture | Medium: proof sketch exists (note 05) | Next natural step after Theorem 10 |
 | 4 | Three independent shifts in 3-D (Conjecture 14) | Decides whether any determinant-style count survives | Low to medium | Counterexamples exist; no structure theorem yet |
@@ -186,7 +192,7 @@ round; the look-up bounds above are the proved figures.
 |---|---|
 | ⌊log₂ n⌋ ≤ G(n) ≤ 2 log₂ n + 2 | Independently proved |
 | The family's generators are all necessary | Tested for k ≤ 40; no general proof written |
-| G(n) = ⌊log₂ n⌋ | Conjecture (exhaustive for n ≤ 25) |
+| G(n) = ⌊log₂ n⌋ | Conjecture when written (exhaustive for n ≤ 25); since proved in note 08, Theorem 21 (written proof, not machine-checked; not in this repository) |
 | Farthest-reach shortening is valid and never lengthens | Independently proved; Tested |
 | Shortened chains are near-shortest | Experimental observation only; false in general |
 | Shortest chains in o(n·m) | Open question |
