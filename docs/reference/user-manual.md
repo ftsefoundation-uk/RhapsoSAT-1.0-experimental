@@ -120,9 +120,11 @@ two texts that fit, and both do.
   When that number is too big to print, it is shown as, for example, `3^250`.
 - **Double-check** – the example text was tested against your rules by a
   separate piece of code that does not rely on the solver (it compares the
-  words directly and finds the borders of the example with the classical
-  border table). It confirms that the example fits; it does not re-derive
-  the pattern or the count.
+  words directly, and checks the border rules by direct comparison or, when
+  their total length is large, with the classical border table of the
+  example). It confirms that the example fits; it does not re-derive the
+  pattern or the count. For an independent check of the groups and the
+  count, use `--certificate` and `certcheck.rs`.
 
 ### Example 2 – exactly one solution
 
