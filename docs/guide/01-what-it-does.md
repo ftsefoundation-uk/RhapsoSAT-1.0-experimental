@@ -44,7 +44,9 @@ follow from one rule (see the example in the main [README](../../README.md)).
 ## What it is for
 
 It is an illustrative problem: small enough to explain completely, yet large
-inputs (millions of characters, millions of rules) are still answered
+inputs (millions of characters; millions of rules in the test programs;
+on a command line the system's limit on argument length allows about
+100,000) are still answered
 quickly and with evidence. It is a place to study how such answers can be
 found fast and checked independently.
 

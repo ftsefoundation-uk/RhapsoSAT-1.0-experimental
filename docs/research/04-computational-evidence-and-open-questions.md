@@ -13,7 +13,7 @@ elsewhere.
 
 | Command | What it does |
 |---|---|
-| `sh prefsuf.rs` | 54 self-tests (49 when this note was written), then two demos |
+| `sh prefsuf.rs` | 56 self-tests (49 when this note was written), then two demos |
 | `sh hard.rs 1` | planted-solution stress test |
 | `sh adversarial.rs check 1` | ~115,000 adversarial checks |
 | `sh proof_lab.rs check 1` | derived contradiction certificates, independent checker |

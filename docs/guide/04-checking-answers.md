@@ -36,7 +36,9 @@ solver. It only tests the evidence:
 
 - **For "there are solutions":** every listed tie really is a tie of some
   rule; the ties produce exactly the claimed groups; and the groups are not
-  too coarse, because giving each group its own letter breaks no rule.
+  too coarse, because giving each group its own letter breaks no "first k =
+  last k" rule. The start and end words then fix at most one letter per
+  group, and the claimed number of open choices is checked.
 - **For "no solution":** the two clashing letters really are demanded by the
   cited rules, and each step of the chain really is a tie.
 
@@ -44,9 +46,15 @@ solver. It only tests the evidence:
 
 - It does not check that a chain is the *shortest* one.
 - It does not compare the certificate with the report printed on screen.
+- Without the puzzle after the file name (`sh certcheck.rs answer.txt`), it
+  checks the puzzle written inside the certificate, which may not be yours.
+  Give the puzzle, as above, to rule that out; the checker reminds you on
+  stderr when you leave it out.
 - The checker is itself a program. It is short and heavily tested (including
   with hundreds of thousands of deliberately damaged certificates), but it
   has not been verified by a proof assistant.
+- Exit status: 0 for VALID, 1 for REJECTED, 2 when the file or the puzzle on
+  the command line cannot be read (or the verdict cannot be written).
 
 The exact file format is described in
 [certificate-format.md](../certificate-format.md).

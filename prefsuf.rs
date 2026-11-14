@@ -94,7 +94,7 @@ fn validate(n: usize, alphabet: &[u8], cons: &[Con]) -> Result<(), String> {
                 if let Some(ch) = w.iter().find(|ch| !allowed[**ch as usize]) {
                     return Err(format!(
                         "rule {rule}: the word uses '{}', which is not one of the allowed letters",
-                        text(&[*ch])
+                        if ch.is_ascii_graphic() { (*ch as char).to_string() } else { format!("byte 0x{:02X}", *ch) }
                     ));
                 }
             }
@@ -1070,6 +1070,65 @@ fn satisfies(s: &[u8], n: usize, alphabet: &[u8], cons: &[Con]) -> bool {
     })
 }
 
+/// The same answer as `satisfies`, in time proportional to the text plus
+/// the rules instead of the total length of all borders. The Border rules
+/// are checked with the classical border table of the text (the "failure
+/// function" of Knuth, Morris and Pratt): fail[i] is the longest border of
+/// the first i characters, and the borders of the whole text are fail[n],
+/// fail[fail[n]], ... This uses nothing of the solver's own reduction, so
+/// it remains an independent double-check of the answer.
+fn satisfies_fast(s: &[u8], n: usize, alphabet: &[u8], cons: &[Con]) -> bool {
+    // With few or short borders the direct comparisons read less than one
+    // pass over the text would; both give the same answer, so this choice
+    // only affects cost.
+    let direct_cost = cons.iter().fold(0usize, |sum, c| match c {
+        Con::Border(k) if *k < n => sum.saturating_add(*k),
+        _ => sum,
+    });
+    if cons.iter().any(|c| matches!(c, Con::Border(k) if *k > n)) {
+        return false; // never a valid rule; the direct check must not be given it
+    }
+    if n >= u32::MAX as usize || direct_cost <= n.saturating_mul(16) {
+        return satisfies(s, n, alphabet, cons);
+    }
+    let mut allowed = [false; 256];
+    for a in alphabet {
+        allowed[*a as usize] = true;
+    }
+    if s.len() != n || s.iter().any(|ch| !allowed[*ch as usize]) {
+        return false;
+    }
+    let mut is_border: Vec<bool> = Vec::new(); // built only if a Border rule needs it
+    cons.iter().all(|c| match c {
+        Con::Prefix(w) => s.starts_with(w),
+        Con::Suffix(w) => s.ends_with(w),
+        Con::Border(k) if *k == 0 || *k == n => true,
+        Con::Border(k) if *k > n => false,
+        Con::Border(k) => {
+            if is_border.is_empty() {
+                let mut fail = vec![0u32; n + 1];
+                let mut b = 0usize;
+                for i in 1..n {
+                    while b > 0 && s[i] != s[b] {
+                        b = fail[b] as usize;
+                    }
+                    if s[i] == s[b] {
+                        b += 1;
+                    }
+                    fail[i + 1] = b as u32;
+                }
+                is_border = vec![false; n + 1];
+                let mut b = fail[n] as usize;
+                while b > 0 {
+                    is_border[b] = true;
+                    b = fail[b] as usize;
+                }
+            }
+            is_border[*k]
+        }
+    })
+}
+
 /// Validate an UNSAT certificate without trusting the solver.
 fn check_conflict(cf: &Conflict, n: usize, cons: &[Con]) -> bool {
     let fixes = |idx: usize, pos: usize, ch: u8| -> bool {
@@ -1729,6 +1788,81 @@ fn run_tests() -> bool {
         t.check("explanations through generator borders pass the checker (search limit 0)", valid);
     }
 
+    // The linear-time double-check agrees with the direct one.
+    {
+        let mut rng = Rng(77);
+        let mut same = true;
+        let mut yes = 0;
+        for round in 0..20_000 {
+            let n = rng.below(if round % 10 == 0 { 400 } else { 30 });
+            let letters: &[u8] = if round % 3 == 0 { b"a" } else { b"ab" };
+            // a text with some period, sometimes damaged, sometimes with a foreign letter
+            let p = 1 + rng.below(n.max(1).min(6));
+            let mut text_: Vec<u8> = (0..n).map(|i| letters[(i % p) * 3 % letters.len()]).collect();
+            if n > 0 && round % 4 == 0 {
+                let at = rng.below(n);
+                text_[at] = if round % 8 == 0 { b'z' } else { b'a' };
+            }
+            let cons: Vec<Con> = (0..rng.below(6))
+                .map(|_| match rng.below(5) {
+                    0 => Con::Prefix(text_[..rng.below(n + 1)].to_vec()),
+                    1 => Con::Suffix(text_[n - rng.below(n + 1)..].to_vec()),
+                    2 => Con::Prefix(vec![b'b'; rng.below(3)]),
+                    _ => Con::Border(rng.below(n + 2)),
+                })
+                .collect();
+            // Border(k) with k > n is rejected before solving; both checks must also agree on it,
+            // so compare on rules the direct check can evaluate
+            let ok_rules = cons.iter().all(|c| !matches!(c, Con::Border(k) if *k > n));
+            let direct = ok_rules && satisfies(&text_, n, letters, &cons);
+            yes += direct as usize;
+            same &= satisfies_fast(&text_, n, letters, &cons) == direct;
+            same &= !satisfies_fast(&text_, n + 1, letters, &cons);
+        }
+        t.check(&format!("the linear-time double-check agrees with the direct one (20000 texts, {yes} satisfying)"), same && yes > 1000);
+    }
+
+    // The test above never has enough border length to leave the direct
+    // comparison (at most 5 rules, so the cost stays below 16 n). Here every
+    // case has 40 or more long borders, so the border table is really used.
+    {
+        let mut rng = Rng(4242);
+        let (mut same, mut yes, mut no, mut table_cases) = (true, 0, 0, 0);
+        for round in 0..3_000 {
+            let n = 40 + rng.below(360);
+            let letters: &[u8] = if round % 5 == 0 { b"abc" } else { b"ab" };
+            let p = 1 + rng.below(8);
+            // a text with period p (its first p letters repeated)
+            let seed: Vec<u8> = (0..p).map(|_| letters[rng.below(letters.len())]).collect();
+            let mut text_: Vec<u8> = (0..n).map(|i| seed[i % p]).collect();
+            if round % 3 == 0 {
+                let at = rng.below(n);
+                text_[at] = if text_[at] == b'a' { b'b' } else { b'a' }; // damaged copy
+            }
+            // long borders: with shift a multiple of p (true for an undamaged
+            // text) or arbitrary (often false); 40 to 59 of them
+            let mut cons: Vec<Con> = (0..40 + rng.below(20))
+                .map(|_| {
+                    let shift = if round % 2 == 0 { p * (1 + rng.below((n / 2) / p)) } else { 1 + rng.below(n / 2) };
+                    Con::Border(n - shift)
+                })
+                .collect();
+            if round % 4 == 0 {
+                cons.push(Con::Prefix(text_[..rng.below(n + 1)].to_vec()));
+                cons.push(Con::Suffix(text_[n - rng.below(n + 1)..].to_vec()));
+            }
+            let cost: usize = cons.iter().map(|c| if let Con::Border(k) = c { *k } else { 0 }).sum();
+            table_cases += (cost > 16 * n) as usize;
+            let direct = satisfies(&text_, n, letters, &cons);
+            if direct { yes += 1 } else { no += 1 }
+            same &= satisfies_fast(&text_, n, letters, &cons) == direct;
+        }
+        t.check(
+            &format!("the border-table double-check agrees with the direct one on many long borders ({table_cases} table cases: {yes} satisfying, {no} not)"),
+            same && table_cases == 3_000 && yes > 500 && no > 500,
+        );
+    }
+
     println!("\n{} passed, {} failed", t.passed, t.failed);
     t.failed == 0
 }
@@ -1794,7 +1928,7 @@ fn report_compact(n: usize, alphabet: &[u8], cons: &[Con]) -> Result<String, Str
             }
             let w = witness(&pattern, free, alphabet);
             let _ = writeln!(o, "witness  {}", text(&w));
-            let _ = writeln!(o, "checked  witness satisfies definition: {}", satisfies(&w, n, alphabet, cons));
+            let _ = writeln!(o, "checked  witness satisfies definition: {}", satisfies_fast(&w, n, alphabet, cons));
         }
     }
     Ok(o)
@@ -1938,7 +2072,7 @@ fn report_plain(n: usize, alphabet: &[u8], cons: &[Con], full: bool) -> Result<S
         }
         Outcome::Sat { pattern, free } => {
             let example = witness(&pattern, free, alphabet);
-            let verdict = if satisfies(&example, n, alphabet, cons) { "confirmed" } else { "FAILED - please report this" };
+            let verdict = if satisfies_fast(&example, n, alphabet, cons) { "confirmed" } else { "FAILED - please report this" };
             abbreviated |= !full && n > SHOW_HEAD + SHOW_TAIL;
             if is_unique(alphabet.len(), free) {
                 let _ = writeln!(o, "Result: ONE SOLUTION - exactly one text fits all the rules.");
@@ -2071,8 +2205,13 @@ fn parse_args(args: &[String]) -> Result<(usize, Vec<u8>, Vec<Con>), String> {
     if args.len() < 2 {
         return Err("please give at least the text length and the allowed letters".into());
     }
-    let n = whole_number(&args[0])
-        .ok_or_else(|| format!("the text length must be a whole number, got '{}'", args[0]))?;
+    let n = whole_number(&args[0]).ok_or_else(|| {
+        if !args[0].is_empty() && args[0].bytes().all(|b| b.is_ascii_digit()) {
+            format!("the text length {} is too large for this computer", args[0])
+        } else {
+            format!("the text length must be a whole number, got '{}'", args[0])
+        }
+    })?;
     let alphabet = args[1].as_bytes().to_vec();
     let mut cons = Vec::new();
     for a in &args[2..] {
@@ -2085,6 +2224,9 @@ fn parse_args(args: &[String]) -> Result<(usize, Vec<u8>, Vec<Con>), String> {
                 let k = whole_number(&a[1..])
                     .ok_or_else(|| format!("'{a}': B must be followed by a whole number, e.g. B5"))?;
                 cons.push(Con::Border(k));
+            }
+            _ if a.starts_with("--") => {
+                return Err(format!("'{a}' is not a known option (the options are --full, --compact, --certificate and --help)"))
             }
             _ => return Err(format!("'{a}' is not a rule (rules look like Pword, Sword or Bk)")),
         }
@@ -2102,8 +2244,30 @@ fn report(n: usize, alphabet: &[u8], cons: &[Con], opts: Options) -> Result<Stri
     }
 }
 
+/// Write the answer. If it cannot be written (closed pipe, full disk) say so
+/// on stderr and exit 2 instead of aborting with a panic.
+fn emit(out: &str) {
+    use std::io::Write;
+    let mut stdout = std::io::stdout().lock();
+    if let Err(e) = stdout.write_all(out.as_bytes()).and_then(|_| stdout.flush()) {
+        eprintln!("could not write the answer: {e}");
+        exit(2);
+    }
+}
+
 fn main() {
-    let raw: Vec<String> = std::env::args().skip(1).collect();
+    // An argument that is not valid UTF-8 cannot be a length, a letter list
+    // or a rule: report it like any other unreadable puzzle.
+    let mut raw: Vec<String> = Vec::new();
+    for a in std::env::args_os().skip(1) {
+        match a.into_string() {
+            Ok(s) => raw.push(s),
+            Err(bad) => {
+                eprintln!("Sorry, that puzzle could not be read: the argument {bad:?} is not valid text.\n\n{USAGE}");
+                exit(2);
+            }
+        }
+    }
     let (opts, args) = split_options(&raw);
     if opts.help {
         println!("{USAGE}");
@@ -2124,7 +2288,7 @@ fn main() {
         exit(if ok { 0 } else { 1 });
     }
     match parse_args(&args).and_then(|(n, alphabet, cons)| report(n, &alphabet, &cons, opts)) {
-        Ok(out) => print!("{out}"),
+        Ok(out) => emit(&out),
         Err(e) => {
             eprintln!("Sorry, that puzzle could not be read: {e}.\n\n{USAGE}");
             exit(2);

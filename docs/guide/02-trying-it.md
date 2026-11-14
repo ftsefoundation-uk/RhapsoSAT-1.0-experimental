@@ -29,7 +29,7 @@ That asks: *which 8-character texts over the letters a and b start with
 "ab", end with "b", and have their first 5 characters equal to their last
 5?*
 
-The first run takes a few seconds, because the file compiles itself.
+Each run takes a few seconds, because the file compiles itself every time.
 
 | Command | What it does |
 |---|---|

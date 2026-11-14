@@ -21,6 +21,9 @@ The solver then tells you one of three things:
    their exact number;
 3. there is **none**, with a short chain of reasons you can check by hand.
 
+For example (abridged: the full report also restates the puzzle first and
+ends with a double-check line):
+
 ```text
 $ sh prefsuf.rs 7 ab B4 Pa Sb
 
@@ -80,8 +83,10 @@ ab", `Sb` "ends with b".
 tools/run_tests.sh run      # every test suite, in the foreground
 ```
 
-Eight suites: the solver's self-tests, stress and adversarial tests, and
-the checks behind the research notes. See the user manual for details.
+Nine suites: the solver's self-tests, stress and adversarial tests, the
+checks behind the research notes, and command-line checks of both programs
+(`tools/test_cli.sh`: exit statuses and verdict lines). See the user manual
+for details.
 
 ## Licence
 

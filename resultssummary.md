@@ -1,5 +1,14 @@
 # Results summary
 
+> **Note for this public repository.** The commits, tags and branches named
+> below (`1b3e19d`, `4f8d4f4`, `185ffd1`, `ff5e6f1`, `baseline-proof-study`,
+> `proof-study`, `main`) belong to the development history this repository
+> was released from; they are not part of this repository, so the
+> `git checkout` commands cannot be run here. This repository was released
+> with the solver as it stood at the end of the last part,
+> "Proof-construction study"; later changes are in this repository's own
+> history. The report is otherwise left as written.
+
 This file records the adversarial investigation of `prefsuf.rs` and the
 answer to a follow-up question about NP-completeness. The fixes described
 here are in commit `4f8d4f4` on `main`. The version that was tested first,

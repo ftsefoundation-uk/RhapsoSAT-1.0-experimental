@@ -70,6 +70,7 @@ run)
         step grid-lab     sh grid_lab.rs check
         step reduce-lab   sh reduce_lab.rs check 1
         step cert-lab     sh cert_lab.rs check 1
+        step cli          sh tools/test_cli.sh
         echo "=== finished $(date '+%Y-%m-%d %H:%M:%S'): overall exit $overall${failed:+ (failed:$failed)}"
     } > "$log" 2>&1
     # the self-tests print the demo after their own verdict; keep only the verdict lines handy

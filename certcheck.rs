@@ -1,5 +1,5 @@
 #!/bin/sh
-//bin/true 2>/dev/null; out="${TMPDIR:-/tmp}/prefsuf_certcheck"; rustc --edition 2021 -O "$0" -o "$out" && exec "$out" "$@"; exit $?
+//bin/true 2>/dev/null; out="${TMPDIR:-/tmp}/prefsuf_certcheck"; rustc --edition 2021 -O "$0" -o "$out" || exit 2; exec "$out" "$@"
 // certcheck.rs -- stand-alone checker for the certificates that
 // `sh prefsuf.rs --certificate ...` prints. It does NOT solve the puzzle and
 // shares no code with prefsuf.rs: it only reads the certificate and tests
@@ -9,7 +9,10 @@
 //     sh certcheck.rs FILE LENGTH LETTERS RULE.. also require that it is about this puzzle
 //
 // Prints one line starting with VALID or REJECTED. Exit status: 0 valid,
-// 1 rejected, 2 the file could not be read or the command line is wrong.
+// 1 rejected, 2 the file could not be read, the command line is wrong, the
+// checker could not be compiled, or the verdict could not be written.
+// Without LENGTH LETTERS RULE..., VALID is about the puzzle written in the
+// certificate's own header, whatever puzzle you had in mind.
 //
 // What VALID means
 //   claim solvable:  the groups of positions in the certificate are exactly
@@ -453,11 +456,41 @@ fn check_contradiction(p: &Puzzle, r: &mut Reader) -> Result<String, String> {
     Ok(format!("contradiction; position {} must be '{}' and position {} must be '{}', and a chain of {} links forces them equal", ends[0].0, ends[0].1 as char, ends[1].0, ends[1].1 as char, len - 1))
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.is_empty() || args[0] == "--help" {
-        eprintln!("usage: sh certcheck.rs FILE [LENGTH LETTERS RULE...]     (FILE may be - for standard input)");
+/// Print the one-line verdict. A verdict that cannot be written (closed
+/// pipe, full disk) must not look like a successful check: exit 2.
+fn say(line: &str) {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    if writeln!(out, "{line}").and_then(|_| out.flush()).is_err() {
         std::process::exit(2);
+    }
+}
+
+fn main() {
+    const USAGE: &str = "usage: sh certcheck.rs FILE [LENGTH LETTERS RULE...]     (FILE may be - for standard input)";
+    // Arguments that are not valid UTF-8 cannot name a puzzle: a usage error.
+    let mut args: Vec<String> = Vec::new();
+    for a in std::env::args_os().skip(1) {
+        match a.into_string() {
+            Ok(s) => args.push(s),
+            Err(bad) => {
+                eprintln!("argument {bad:?} is not valid text\n{USAGE}");
+                std::process::exit(2);
+            }
+        }
+    }
+    if args.is_empty() || args[0] == "--help" {
+        eprintln!("{USAGE}");
+        std::process::exit(2);
+    }
+    // A puzzle given on the command line is read before the certificate, so
+    // that a mistake in it is reported as a bad command line (exit 2), not
+    // as a rejected certificate (exit 1).
+    if args.len() > 1 {
+        if let Err(e) = puzzle_from_args(&args[1..]) {
+            eprintln!("bad puzzle on the command line: {e}\n{USAGE}");
+            std::process::exit(2);
+        }
     }
     let mut bytes = Vec::new();
     let read = if args[0] == "-" {
@@ -471,9 +504,14 @@ fn main() {
     }
     let expected = if args.len() > 1 { Some(&args[1..]) } else { None };
     match check_text(&bytes, expected) {
-        Ok(what) => println!("VALID: {what}"),
+        Ok(what) => {
+            say(&format!("VALID: {what}"));
+            if expected.is_none() {
+                eprintln!("note: checked against the puzzle written in the certificate itself; add LENGTH LETTERS RULE... to require that it is your puzzle");
+            }
+        }
         Err(why) => {
-            println!("REJECTED: {why}");
+            say(&format!("REJECTED: {why}"));
             std::process::exit(1);
         }
     }

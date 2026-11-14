@@ -14,7 +14,14 @@ sh prefsuf.rs --certificate 7 ab B4 Pa Sb | sh certcheck.rs -
 
 The checker prints one line starting with `VALID` or `REJECTED` and exits
 with status 0 (valid), 1 (rejected) or 2 (file unreadable, bad command
-line).
+line or a puzzle on it that cannot be read, the checker could not be
+compiled, or the verdict could not be written).
+
+Without a puzzle after the file name, `VALID` means the certificate is
+correct **for the puzzle written in its own header**, which is not shown in
+the verdict line; the checker then prints a reminder on stderr. Give the
+puzzle (`LENGTH LETTERS RULE...`, rules in the same order) to require that
+the certificate is about your puzzle.
 
 ## Layout
 
@@ -61,9 +68,11 @@ via
 
 For every certificate: the puzzle in the header is well formed (letters
 distinct visible ASCII, words no longer than the text and made of allowed
-letters, borders no longer than the text), the layout is exact, and nothing
-follows `end`. If a puzzle is given on the command line, the header must
-describe exactly that puzzle.
+letters, borders no longer than the text), the keywords and counts come in
+the order shown above, and nothing but blank space follows `end`. The
+reader is lenient about spacing: line ends may be CRLF, numbers may have
+leading zeros, and the body may be wrapped differently. If a puzzle is
+given on the command line, the header must describe exactly that puzzle.
 
 **Solvable.**
 
@@ -95,20 +104,25 @@ must hold the same letter, so no text satisfies the rules.
   different but still correct forest, or with groups numbered differently,
   is accepted.
 
-The checker's own correctness rests on about 300 lines of code and the
-argument above; it is tested (`sh cert_lab.rs`) but not machine-verified.
+The checker's own correctness rests on about 430 lines of code (not
+counting comments) and the argument above; it is tested
+(`sh cert_lab.rs`, `tools/test_cli.sh`) but not machine-verified.
 
 ## Size and cost
 
 The certificate contains the puzzle, so it is at least as long as the list
-of rules. A solvable certificate adds N labels and N − G links. Checking
-takes time proportional to the size of the certificate (times the
+of rules. A solvable certificate adds N labels and the links: the solver
+writes exactly N − G (a spanning forest); the checker accepts any number up
+to N, so redundant links are allowed. Checking takes time proportional to the size of the certificate (times the
 inverse-Ackermann factor of union-find). Producing it looks at no more than
 N × (number of generator borders) ≤ N × (2 log₂ N + 2) links
 (`docs/research/06`).
 
 Measured at N = 5,000,000 (`sh cert_lab.rs big`; note 06 has the table):
-37–93 MB, 0.4–1.3 s to produce, 0.15–1.2 s to check.
+12–93 MB, 0.4–1.3 s to produce, 0.15–1.2 s to check.
 
-Limits: texts of 2³² − 1 characters or more are refused by both programs.
+Limits: the solver refuses to write a certificate for texts of 2³² − 1
+characters or more, and the checker refuses solvable certificates for
+such texts. A contradiction certificate needs no table as long as the
+text, so the checker accepts it for any length that fits in 18 digits.
 Numbers in a certificate may have at most 18 digits.

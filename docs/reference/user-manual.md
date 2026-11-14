@@ -53,8 +53,9 @@ sh prefsuf.rs LENGTH LETTERS [RULE]...
 
 The file is a Rust program that is also a tiny shell script: `sh prefsuf.rs`
 compiles it (this takes a few seconds, each time) and then runs it. If you
-prefer, compile it once yourself with `rustc -O prefsuf.rs` and run the
-resulting `./prefsuf` with the same arguments.
+prefer, compile it once yourself with
+`rustc --edition 2021 -O prefsuf.rs -o prefsuf` and run the resulting
+`./prefsuf` with the same arguments.
 
 Options:
 
@@ -118,13 +119,19 @@ two texts that fit, and both do.
   *(number of allowed letters)* multiplied by itself once per open choice.
   When that number is too big to print, it is shown as, for example, `3^250`.
 - **Double-check** – the example text was tested against your rules by a
-  separate, very simple piece of code that does not rely on the solver.
+  separate piece of code that does not rely on the solver (it compares the
+  words directly and finds the borders of the example with the classical
+  border table). It confirms that the example fits; it does not re-derive
+  the pattern or the count.
 
 ### Example 2 – exactly one solution
 
 ```sh
 sh prefsuf.rs 6 ab B4 Pab
 ```
+
+Abridged (the report starts by restating the puzzle, as in Example 1, and
+ends with the double-check line):
 
 ```
 Result: ONE SOLUTION - exactly one text fits all the rules.
@@ -137,6 +144,8 @@ Result: ONE SOLUTION - exactly one text fits all the rules.
 ```sh
 sh prefsuf.rs 7 ab B4 Pa Sb
 ```
+
+Abridged (the report starts by restating the puzzle):
 
 ```
 Result: NO SOLUTION - no text can fit all the rules; they contradict each other.
@@ -258,6 +267,14 @@ border rules. In `adversarial.rs perf` runs, every solvable shape tried —
 including a 5,000,000-character text with 4,999,999 different border rules —
 finished in under 0.4 seconds.
 
+**Double-checking the example** (the last line of a report) used to compare
+every border rule character by character, which costs the total length of
+all the borders: the whole report took 12.1 s for a 2,000,000-character text
+with the 100,000 border rules `B1900000` … `B1999999` and `Pa`. It now uses
+the border table of the example text when that is cheaper, so it too takes
+time proportional to the text length: the same report takes 0.17 s.
+`--certificate` never ran this check.
+
 **Explaining a contradiction** (step 3) is done in one of two ways.
 
 *Search.* The program first searches for the *shortest* chain of links. With
@@ -289,27 +306,27 @@ observed, not proved. `proof_lab.rs` contains the experiments.
 | `prefsuf.rs` | The solver, the report, and the built-in self-tests. This is the only file you need. |
 | `hard.rs` | A stress test. It builds large puzzles whose correct answer is known in advance (by a method that shares no code with the solver) and checks the solver against them. Run: `sh hard.rs` (optionally `sh hard.rs SEED MAX_LENGTH`). |
 | `bench.rs` | A timing and memory measurement tool. Run: `sh bench.rs SHAPE LENGTH NUMBER_OF_LETTERS REPEATS`, e.g. `sh bench.rs chain 1000000 2 3`. Reads `/proc`, so Linux only. |
-
 | `adversarial.rs` | Deliberately hostile tests. It checks the solver against answers worked out independently (trying every text on small puzzles; a separate grouping method on large ones) across awkward cases: borders that nearly clash, thousands of borders at once, contradictions millions of steps long, malformed input. Run: `sh adversarial.rs` (optionally `sh adversarial.rs check SEED`), or `sh adversarial.rs perf SHAPE LENGTH` for one timing. |
-
 | `proof_lab.rs` | Experiments on how explanations are built: where the time of a contradictory puzzle goes (`trace`), explanations built by derivation and judged by the independent checker of `adversarial.rs` (`derive`, `check`), and searches for inputs that make the derivation expensive (`cost`, `hunt`). Run: `sh proof_lab.rs check`, or `sh proof_lab.rs trace mult4_2_unsat 100000`. |
-
 | `theory_lab.rs` | Machine checks of the mathematics in `../research/`: the reduction theorem on intervals, grids and higher-dimensional boxes, its extensions and counterexamples, and "partition certificates" that let a separate checker confirm the solver's groups without trusting it. Run: `sh theory_lab.rs`. |
 | `grid_lab.rs` | Shift systems on grids and higher-dimensional boxes (`../research/05`): an exact group count for two independent shifts, reduce-then-count, counterexamples in three dimensions, checked against two independent brute-force counters. Stand-alone. Run: `sh grid_lab.rs`; `sh grid_lab.rs bench`; `sh grid_lab.rs count 3,3 2,1 1,2`. |
 | `reduce_lab.rs` | Reduction before grouping (`../research/06`): grouping strategies and explanation strategies compared, with correctness checks. Run: `sh reduce_lab.rs`; `sh reduce_lab.rs bench`; `sh reduce_lab.rs proofs`. |
 | `certcheck.rs` | Stand-alone checker for certificates printed by `sh prefsuf.rs --certificate ...`. Shares no code with the solver. Run: `sh certcheck.rs FILE [LENGTH LETTERS RULE...]`. |
 | `cert_lab.rs` | Tests of certificates and checker: valid, damaged, forged, malformed, boundary cases, long texts. Run: `sh cert_lab.rs`; `sh cert_lab.rs big`. |
+| `tools/test_cli.sh` | Command-line checks of `prefsuf.rs` and `certcheck.rs`: exit statuses, the verdict line, and failures (bad arguments, output that cannot be written) that must not crash. Run: `sh tools/test_cli.sh` (about a minute: each call recompiles). |
 | `tools/run_tests.sh` | Runs every test suite in the background so that it keeps going if your terminal disconnects (see "Testing"). |
 | `../research/` | Research notes: 01 the solver and its theorem, 02 a general framework, 03 grids and higher dimensions, 04 evidence, sources and open questions, 05 exact counts on grids and boxes, 06 reduction first, generator borders, explanation cost, certificates, 07 number of generators and shorter explanations. `../certificate-format.md` describes the certificate. |
 | `demo/` | A small interactive web page (`demo/index.html`, open it in a browser) that explains shifts, groups and the reduction to non-specialists. A teaching example; it shares no code with the solver. |
 | `resultssummary.md` | Earlier reports: adversarial testing, the proof-construction study, the theorem. |
 
-`hard.rs`, `bench.rs`, `adversarial.rs`, `proof_lab.rs` and `theory_lab.rs`
-must sit in the same folder as `prefsuf.rs`.
+`hard.rs`, `bench.rs`, `adversarial.rs`, `proof_lab.rs`, `theory_lab.rs`,
+`reduce_lab.rs` and `cert_lab.rs` must sit in the same folder as
+`prefsuf.rs`; `cert_lab.rs` also needs `certcheck.rs` and `proof_lab.rs`
+also needs `adversarial.rs`. `grid_lab.rs` and `certcheck.rs` stand alone.
 
 ## Testing
 
-`sh prefsuf.rs` (no arguments) runs 54 self-tests. They include comparing the
+`sh prefsuf.rs` (no arguments) runs 56 self-tests. They include comparing the
 solver against plain trial-and-error on several thousand tiny puzzles — small
 enough that trying every possible text is feasible — and checks of the report
 wording. The command exits with status 0 only if all pass.
@@ -321,10 +338,15 @@ wording. The command exits with status 0 only if all pass.
 `total failures: 0` on success. It takes under a minute and needs about 200 MB
 of memory, because some of its puzzles are 5,000,000 characters long.
 
+`sh tools/test_cli.sh` runs the solver and the checker as a user would and
+checks their exit statuses (0 answer or VALID, 1 REJECTED, 2 unreadable
+input, bad command line, or output that cannot be written) and that neither
+crashes.
+
 ### Running everything in the background
 
 ```sh
-tools/run_tests.sh start     # start all suites, detached (about a minute and a half)
+tools/run_tests.sh start     # start all suites, detached (about three minutes)
 tools/run_tests.sh status    # running? finished? result and exit status
 tools/run_tests.sh log -f    # watch the log
 tools/run_tests.sh wait      # block until done; exits with the run's status
@@ -375,3 +397,5 @@ condition can fail. Nothing here has any bearing on NP-complete problems.
   your temporary folder (`$TMPDIR`, or `/tmp`).
 - Input mistakes (for example a word longer than the text, or a letter that
   is not in the allowed list) are reported as errors, with exit status 2.
+  So is an answer that cannot be written (a full disk, or a pipe closed
+  early, as in `sh prefsuf.rs ... | head`).
